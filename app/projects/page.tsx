@@ -20,6 +20,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useLanguage } from "@/contexts/LanguageContext";
 import InfoPopup from "@/components/ui/info-popup";
+import ProjectApplicationModal from "@/components/ProjectApplicationModal";
 
 interface Project {
   id: string;
@@ -69,11 +70,6 @@ function ProjectsContent() {
   // États pour la modal de candidature
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [applicationData, setApplicationData] = useState({
-    message: "",
-  });
-  const [applicationLoading, setApplicationLoading] = useState(false);
-  const [applicationSuccess, setApplicationSuccess] = useState(false);
 
   // NOUVEAU : États pour l'alerte stylée de candidature existante
   const [showExistingApplicationAlert, setShowExistingApplicationAlert] =
@@ -422,10 +418,6 @@ function ProjectsContent() {
   const closeApplicationModal = () => {
     setShowApplicationModal(false);
     setSelectedProject(null);
-    setApplicationData({
-      message: "",
-    });
-    setApplicationSuccess(false);
   };
 
   // NOUVEAU : Fermer l'alerte de candidature existante
@@ -514,143 +506,6 @@ function ProjectsContent() {
       });
     } finally {
       setCreateLoading(false);
-    }
-  };
-
-  const handleSubmitApplication = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !selectedProject) return;
-
-    // Afficher le popup d'information immédiatement
-    setInfoPopupData({
-      title: "Candidature en cours",
-      message:
-        "Votre candidature est en cours de traitement. Nous créons votre profil de candidature et notifions le client. Cette opération peut prendre quelques minutes.",
-      type: "processing",
-    });
-    setShowInfoPopup(true);
-
-    setApplicationLoading(true);
-    try {
-      console.log("🚀 DÉMARRAGE CANDIDATURE FORCÉE:", {
-        userId: user.id,
-        projectId: selectedProject.id,
-        clientId: selectedProject.client_id,
-      });
-
-      // 1. CRÉER LA CANDIDATURE D'ABORD
-      const { data: newApplication, error: appError } = await supabase
-        .from("project_applications")
-        .insert({
-          developer_id: user.id,
-          project_id: selectedProject.id,
-          status: "pending",
-        })
-        .select()
-        .single();
-
-      if (appError) {
-        console.error("❌ Erreur candidature:", appError);
-        throw new Error(`Erreur candidature: ${appError.message}`);
-      }
-
-      console.log("✅ Candidature créée:", newApplication);
-
-      // 2. CRÉER OU RÉCUPÉRER CONVERSATION (UPSERT LOGIC)
-      let conversationId: string;
-
-      // D'abord essayer de récupérer une conversation existante
-      const { data: existingConv } = await supabase
-        .from("conversations")
-        .select("id")
-        .eq("client_id", selectedProject.client_id)
-        .eq("developer_id", user.id)
-        .eq("project_id", selectedProject.id)
-        .single();
-
-      if (existingConv) {
-        // Conversation existe, on l'utilise
-        conversationId = existingConv.id;
-        console.log("📞 Conversation existante utilisée:", conversationId);
-
-        // Mettre à jour timestamp
-        await supabase
-          .from("conversations")
-          .update({
-            updated_at: new Date().toISOString(),
-            last_message_at: new Date().toISOString(),
-          })
-          .eq("id", conversationId);
-      } else {
-        // Créer nouvelle conversation
-        const { data: newConversation, error: convError } = await supabase
-          .from("conversations")
-          .insert({
-            client_id: selectedProject.client_id,
-            developer_id: user.id,
-            project_id: selectedProject.id,
-            subject: `Candidature pour "${selectedProject.title}"`,
-            status: "active",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .select()
-          .single();
-
-        if (convError) {
-          console.error("❌ Erreur conversation:", convError);
-          throw new Error(`Erreur conversation: ${convError.message}`);
-        }
-
-        conversationId = newConversation.id;
-        console.log("✅ Nouvelle conversation créée:", conversationId);
-      }
-
-      // 3. CRÉER MESSAGE DE CANDIDATURE FORCÉ
-      const { data: newMessage, error: msgError } = await supabase
-        .from("messages")
-        .insert({
-          conversation_id: conversationId,
-          sender_id: user.id,
-          content: `🎉 Vous avez reçu une nouvelle candidature !\n\n${applicationData.message}\n\nNous vous souhaitons une excellente collaboration et la réussite de votre projet. L'équipe LinkerAI reste disponible pour vous accompagner tout au long de cette aventure.\n\nBonne chance ! 🚀`,
-          is_read: false,
-          created_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
-
-      if (msgError) {
-        console.error("❌ Erreur message:", msgError);
-        throw new Error(`Erreur message: ${msgError.message}`);
-      }
-
-      console.log("✅ Message créé:", newMessage);
-
-      console.log("🎉 CANDIDATURE COMPLÈTE RÉUSSIE !");
-
-      // Afficher popup de succès
-      setInfoPopupData({
-        title: "Candidature envoyée !",
-        message:
-          "🎉 Votre candidature a été envoyée avec succès ! Le client a été notifié et vous pouvez suivre l'évolution dans vos messages. Bonne chance !",
-        type: "success",
-      });
-
-      setApplicationSuccess(true);
-      setTimeout(() => {
-        closeApplicationModal();
-      }, 2000);
-    } catch (error: any) {
-      console.error("💥 ERREUR CANDIDATURE:", error);
-
-      // Afficher popup d'erreur
-      setInfoPopupData({
-        title: "Erreur de candidature",
-        message: `Une erreur s'est produite lors de l'envoi de votre candidature : ${error.message}. Veuillez réessayer.`,
-        type: "info",
-      });
-    } finally {
-      setApplicationLoading(false);
     }
   };
 
@@ -1504,105 +1359,17 @@ function ProjectsContent() {
         </div>
       )}
 
-      {/* Modal de candidature - Responsive */}
-      {showApplicationModal && selectedProject && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white max-w-2xl w-full max-h-[90vh] overflow-y-auto rounded-xl">
-            <div className="p-4 sm:p-6 border-b-2 border-gray-200 flex justify-between items-center">
-              <div>
-                <h2 className="text-xl sm:text-2xl font-black">
-                  Candidater au projet
-                </h2>
-                <p className="text-gray-600 mt-1 text-sm sm:text-base truncate">
-                  {selectedProject.title}
-                </p>
-              </div>
-              <button
-                onClick={closeApplicationModal}
-                className="p-2 hover:bg-gray-100 rounded flex-shrink-0"
-              >
-                <X className="h-5 w-5 sm:h-6 sm:w-6" />
-              </button>
-            </div>
-
-            {applicationSuccess ? (
-              <div className="p-6 sm:p-8 text-center">
-                <CheckCircle className="h-12 w-12 sm:h-16 sm:w-16 mx-auto mb-4 text-green-500" />
-                <h3 className="text-xl sm:text-2xl font-black text-black mb-2">
-                  Candidature envoyée !
-                </h3>
-                <p className="text-gray-600 mb-4 text-sm sm:text-base">
-                  Votre candidature a été envoyée au client. Vous recevrez une
-                  réponse dans votre messagerie.
-                </p>
-                <button
-                  onClick={closeApplicationModal}
-                  className="bg-black text-white px-4 sm:px-6 py-2 sm:py-3 font-black rounded-lg hover:bg-gray-800 transition-colors text-sm sm:text-base"
-                >
-                  Fermer
-                </button>
-              </div>
-            ) : (
-              <div className="p-4 sm:p-6">
-                <form
-                  onSubmit={handleSubmitApplication}
-                  className="space-y-4 sm:space-y-6"
-                >
-                  <div>
-                    <label className="block text-sm font-black text-black mb-2">
-                      Message de candidature *
-                    </label>
-                    <textarea
-                      required
-                      rows={6}
-                      value={applicationData.message}
-                      onChange={(e) =>
-                        setApplicationData((prev) => ({
-                          ...prev,
-                          message: e.target.value,
-                        }))
-                      }
-                      className="w-full px-3 sm:px-4 py-2 sm:py-3 border-2 border-gray-200 rounded-lg focus:border-black focus:outline-none font-bold resize-none text-sm sm:text-base"
-                      placeholder="Présentez-vous et expliquez pourquoi vous êtes le candidat idéal pour ce projet..."
-                    />
-                    <p className="text-xs sm:text-sm text-gray-600 mt-2">
-                      💡 Vous pourrez envoyer votre CV directement dans la
-                      conversation après votre candidature.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4">
-                    <button
-                      type="button"
-                      onClick={closeApplicationModal}
-                      className="px-4 sm:px-6 py-2 sm:py-3 border-2 border-gray-200 text-black font-black rounded-lg hover:border-black transition-colors text-sm sm:text-base"
-                    >
-                      Annuler
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={applicationLoading}
-                      className="bg-black text-white px-4 sm:px-6 py-2 sm:py-3 font-black rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm sm:text-base"
-                    >
-                      {applicationLoading ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          Envoi...
-                        </>
-                      ) : (
-                        <>
-                          <Send className="h-4 w-4" />
-                          Envoyer la candidature
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Modal de candidature partagée */}
+      <ProjectApplicationModal
+        isOpen={showApplicationModal}
+        onClose={closeApplicationModal}
+        project={selectedProject}
+        user={user}
+        onSuccess={() => {
+          // Optionnel : rafraîchir la liste des projets
+          console.log("Candidature envoyée avec succès depuis /projects!");
+        }}
+      />
 
       <style>{`
         .stars, .twinkling {
