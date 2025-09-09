@@ -1,0 +1,18 @@
+# Règles personnalisées pour LinkerAI
+
+## Contexte du projet
+
+LinkerAI est une plateforme web moderne de mise en relation entre clients et développeurs spécialisés en intelligence artificielle. Développée avec Next.js 14, TypeScript, Tailwind CSS et Supabase, l'application facilite la gestion de projets IA, la communication entre parties prenantes et la création de profils détaillés. Le projet supporte l'internationalisation (français/anglais) et propose un système complet incluant authentification, messagerie en temps réel, gestion de candidatures, évaluations et tableaux de bord personnalisés pour clients et développeurs. L'architecture suit les bonnes pratiques React avec des composants réutilisables, une gestion d'état via Context API, et une base de données PostgreSQL sécurisée avec Row Level Security.
+
+## Règles de développement
+
+- Toujours répondre en français
+- Respecter l'architecture Next.js App Router existante
+- Maintenir la cohérence avec le système de design Tailwind CSS
+- Utiliser TypeScript strict avec les types définis dans `types/supabase.ts`
+- Suivre les conventions de nommage et structure des composants existants
+- Intégrer le système d'internationalisation via `LanguageContext`
+- Respecter les politiques de sécurité Supabase et RLS
+- Optimiser les performances avec le code splitting Next.js
+
+---
