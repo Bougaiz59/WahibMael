@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import UnifiedNavbar from "@/components/layout/unified-navbar";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import { AuthProvider } from "@/components/AuthProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,10 +21,12 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <body className={inter.className}>
-        <LanguageProvider>
-          <UnifiedNavbar />
-          {children}
-        </LanguageProvider>
+        <AuthProvider>
+          <LanguageProvider>
+            <UnifiedNavbar />
+            {children}
+          </LanguageProvider>
+        </AuthProvider>
       </body>
     </html>
   );

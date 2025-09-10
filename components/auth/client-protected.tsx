@@ -1,54 +1,67 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase'
-
-const supabase = createClient()
+import { useEffect, useState } from "react";
+import { useAuth } from "@/components/AuthProvider";
+import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
 
 interface ClientProtectedProps {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
 export default function ClientProtected({ children }: ClientProtectedProps) {
-  const [loading, setLoading] = useState(true)
-  const [authorized, setAuthorized] = useState(false)
+  const { user, loading: authLoading } = useAuth();
+  const [userProfile, setUserProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      
+      if (authLoading) return;
+
       if (!user) {
-        window.location.href = '/auth/login'
-        return
+        router.push("/auth/login");
+        return;
       }
 
-      // Vérifier le type d'utilisateur
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('user_type')
-        .eq('id', user.id)
-        .single()
+      try {
+        // Vérifier le type d'utilisateur
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("user_type")
+          .eq("id", user.id)
+          .single();
 
-      if (profile?.user_type === 'client') {
-        setAuthorized(true)
-      } else {
-        // Rediriger les développeurs vers leur dashboard
-        window.location.href = '/dashboard/developer'
-        return
+        setUserProfile(profile);
+
+        if (profile?.user_type === "client") {
+          setAuthorized(true);
+        } else {
+          // Rediriger les développeurs vers leur dashboard
+          router.push("/dashboard/developer");
+          return;
+        }
+      } catch (error) {
+        console.error("Erreur vérification profil:", error);
+        router.push("/auth/login");
+        return;
       }
-      
-      setLoading(false)
-    }
 
-    checkAuth()
-  }, [])
+      setLoading(false);
+    };
+
+    checkAuth();
+  }, [user, authLoading, router]);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-white text-xl">Vérification des autorisations...</div>
+        <div className="text-white text-xl">
+          Vérification des autorisations...
+        </div>
       </div>
-    )
+    );
   }
 
   if (!authorized) {
@@ -59,8 +72,8 @@ export default function ClientProtected({ children }: ClientProtectedProps) {
           <p>Cette section est réservée aux clients.</p>
         </div>
       </div>
-    )
+    );
   }
 
-  return <>{children}</>
+  return <>{children}</>;
 }

@@ -8,12 +8,12 @@ import { MessageCircle, User, LogOut, Menu, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/components/AuthProvider";
 
 // Composant navbar qui ne s'affiche que côté client
 function NavbarContent() {
-  const [user, setUser] = useState(null);
+  const { user, loading } = useAuth();
   const [userProfile, setUserProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -65,53 +65,30 @@ function NavbarContent() {
     }
   };
 
-  // Fonction pour vérifier l'utilisateur
-  const checkUser = async () => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
-
-      if (user) {
-        // Charger le profil
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("user_type, full_name")
-          .eq("id", user.id)
-          .single();
-
-        setUserProfile(profile);
-
-        // Charger le count des messages non lus
-        loadUnreadCount(user.id);
-      }
-    } catch (error) {
-      console.error("Erreur auth:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Charger le profil utilisateur quand l'utilisateur change
   useEffect(() => {
-    checkUser();
+    const loadUserProfile = async () => {
+      if (user) {
+        try {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("user_type, full_name")
+            .eq("id", user.id)
+            .single();
 
-    // Écouter les changements d'auth
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session?.user) {
-        setUser(session.user);
-        checkUser();
-      } else if (event === "SIGNED_OUT") {
-        setUser(null);
+          setUserProfile(profile);
+          loadUnreadCount(user.id);
+        } catch (error) {
+          console.error("Erreur profil:", error);
+        }
+      } else {
         setUserProfile(null);
         setUnreadCount(0);
       }
-    });
+    };
 
-    return () => subscription.unsubscribe();
-  }, []);
+    loadUserProfile();
+  }, [user]);
 
   // Écouter les changements de messages en temps réel
   useEffect(() => {
@@ -162,10 +139,10 @@ function NavbarContent() {
   }, [user]);
 
   // Fonction de déconnexion
+  const { signOut } = useAuth();
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut();
-      setUser(null);
+      await signOut();
       setUserProfile(null);
       setMobileMenuOpen(false);
       router.push("/");
