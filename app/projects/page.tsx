@@ -169,9 +169,10 @@ function ProjectsContent() {
 
       if (projectsData && projectsData.length > 0) {
         // Récupérer tous les client_ids uniques
-        const clientIds = [
-          ...new Set(projectsData.map((p) => p.client_id).filter(Boolean)),
-        ];
+        const clientIds = Array.from(new Set(projectsData.map((p) => p.client_id).filter(Boolean)));
+        // const clientIds = Array.from(new Set(projectsData.map((p) => p.client_id).filter(Boolean)));
+
+
 
         // Charger tous les clients en une seule requête
         const { data: clientsData, error: clientsError } = await supabase
